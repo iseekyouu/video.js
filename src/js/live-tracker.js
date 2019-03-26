@@ -1,5 +1,6 @@
 import Component from './component.js';
 import mergeOptions from './utils/merge-options.js';
+import document from 'global/document';
 
 /* track when we are at the live edge, and other helpers for live playback */
 class LiveTracker extends Component {
@@ -13,6 +14,7 @@ class LiveTracker extends Component {
     this.reset_();
 
     this.on(this.player_, 'durationchange', this.handleDurationchange);
+
   }
 
   isBehind_() {
@@ -38,7 +40,6 @@ class LiveTracker extends Component {
   // all the functionality for tracking when seek end changes
   // and for tracking how far past seek end we should be
   trackLive_() {
-    this.pastSeekEnd_ = this.pastSeekEnd_;
     const seekable = this.player_.seekable();
 
     // skip undefined seekable
@@ -67,6 +68,18 @@ class LiveTracker extends Component {
       this.behindLiveEdge_ = this.isBehind_();
       this.trigger('liveedgechange');
     }
+
+  }
+
+  toggleVisibility_() {
+    this.clearInterval(this.trackingInterval_);
+
+    if (document.hidden) {
+      return;
+    }
+
+    this.trackingInterval_ = this.setInterval(this.trackLive_, 30);
+    this.trackLive_();
   }
 
   /**
@@ -105,6 +118,12 @@ class LiveTracker extends Component {
       };
       this.one(this.player_, 'timeupdate', this.handleTimeupdate);
     }
+
+    // we don't need to update the play progress if the document is hidden,
+    // also, this causes the CPU to spike and eventually crash the page on IE11.
+    if ('hidden' in document && 'visibilityState' in document) {
+      this.on(document, 'visibilitychange', this.toggleVisibility_);
+    }
   }
 
   handlePlay() {
@@ -133,6 +152,8 @@ class LiveTracker extends Component {
       this.off(this.player_, 'timeupdate', this.handleTimeupdate);
       this.handleTimeupdate = null;
     }
+
+    this.off(document, 'visibilitychange', this.toggleVisibility_);
   }
 
   /**
